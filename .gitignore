@@ -1,0 +1,12 @@
+﻿node_modules/
+.next/
+build/
+dist/
+.env*
+venv/
+__pycache__/
+*.sqlite
+*.db
+faiss_index/
+.pytest_cache/
+.venv/
