@@ -10,9 +10,7 @@ import {
   DollarSign,
   FileText,
   Loader2,
-  Clock,
   AlertTriangle,
-  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { getIncident, getCostImpact, getPostmortem, analyzeIncident, resolveIncident } from "@/lib/api";

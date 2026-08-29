@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { DollarSign, TrendingDown, AlertCircle } from "lucide-react";
+import { DollarSign, AlertCircle } from "lucide-react";
 import { Incident } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 
@@ -20,7 +20,7 @@ const SEVERITY_MULTIPLIERS: Record<string, number> = {
 const DEFAULT_COST_PER_MIN = 500;
 
 export function CostTicker({ incidents }: CostTickerProps) {
-  const [time, setTime] = useState(Date.now());
+  const [time, setTime] = useState(0);
 
   // Tick every second to give a live real-time financial impact feel
   useEffect(() => {

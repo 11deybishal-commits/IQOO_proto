@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth-context";
-import { User, Shield, Plug, Brain, Zap, Database, Network, CheckCircle, Clock } from "lucide-react";
+import { User, Shield, Plug, Brain, Zap, Database, Network, CheckCircle } from "lucide-react";
 
 export default function SettingsPage() {
   const { user } = useAuth();

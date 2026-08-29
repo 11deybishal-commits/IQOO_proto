@@ -75,8 +75,8 @@ export default function AuthPage() {
       const res = await login(data.email, data.password);
       await setToken(res.access_token);
       router.push("/dashboard");
-    } catch (e: any) {
-      setError(e.message || "Failed to authenticate. Please check your credentials.");
+    } catch (e: unknown) {
+      setError((e as Error).message || "Failed to authenticate. Please check your credentials.");
     }
   };
 
@@ -89,8 +89,8 @@ export default function AuthPage() {
       const res = await login(data.email, data.password);
       await setToken(res.access_token);
       router.push("/dashboard");
-    } catch (e: any) {
-      setError(e.message || "Registration failed. Username may already exist.");
+    } catch (e: unknown) {
+      setError((e as Error).message || "Registration failed. Username may already exist.");
     }
   };
 
@@ -108,8 +108,8 @@ export default function AuthPage() {
       }
       await setToken(res.access_token);
       router.push("/dashboard");
-    } catch (e: any) {
-      setError(e.message || "Demo login failed");
+    } catch (e: unknown) {
+      setError((e as Error).message || "Demo login failed");
     }
   };
 

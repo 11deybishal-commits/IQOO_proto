@@ -34,8 +34,8 @@ export default function KnowledgePage() {
     try {
       const res = await uploadDocument(file);
       setUploadResult({ message: res.message, type: "success" });
-    } catch (err: any) {
-      setUploadResult({ message: err.message || "Upload failed", type: "error" });
+    } catch (err: unknown) {
+      setUploadResult({ message: (err as Error).message || "Upload failed", type: "error" });
     } finally {
       setUploading(false);
     }

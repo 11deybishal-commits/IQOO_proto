@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Network, Zap, AlertTriangle, Database, Globe, Server, Info } from "lucide-react";
+import { Network, AlertTriangle, Info } from "lucide-react";
 import { getTopology, getBlastRadius } from "@/lib/api";
 import { BlastRadius } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";

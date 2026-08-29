@@ -13,7 +13,6 @@ import {
   ChevronDown,
   ChevronUp,
   FileText,
-  Clock,
   Sparkles,
 } from "lucide-react";
 import { getIncidents, analyzeIncident, resolveIncident } from "@/lib/api";

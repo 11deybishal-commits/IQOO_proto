@@ -6,7 +6,6 @@ import Link from "next/link";
 import {
   AlertTriangle,
   CheckCircle2,
-  Activity,
   Zap,
   ArrowRight,
   Brain,
@@ -29,7 +28,7 @@ function StatCard({
 }: {
   label: string;
   value: string | number;
-  icon: any;
+  icon: React.ElementType;
   color: string;
   sub?: string;
 }) {

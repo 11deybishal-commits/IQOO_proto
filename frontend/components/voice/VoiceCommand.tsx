@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, MicOff, Loader2, X } from "lucide-react";
 import { transcribeAudio } from "@/lib/api";
@@ -32,8 +32,8 @@ export function VoiceCommand() {
         try {
           const res = await transcribeAudio(blob);
           setTranscript(res.text || "(no speech detected)");
-        } catch (e: any) {
-          setError(e.message);
+        } catch (e: unknown) {
+          setError((e as Error).message);
         } finally {
           setProcessing(false);
         }
@@ -42,7 +42,7 @@ export function VoiceCommand() {
       mediaRef.current = recorder;
       recorder.start();
       setRecording(true);
-    } catch (e: any) {
+    } catch {
       setError("Microphone access denied");
     }
   };

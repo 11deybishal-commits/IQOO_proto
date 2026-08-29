@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Plus, AlertTriangle, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
