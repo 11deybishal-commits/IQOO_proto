@@ -13,10 +13,16 @@ from app.db.session import get_db, AsyncSessionLocal
 from app.models.incident import Incident
 from app.models.user import User
 from app.schemas.incident import IncidentCreate, IncidentResponse, IncidentUpdate
-from app.schemas.hackathon import PostMortemRequest, PostMortemResponse, CostImpactResponse
+from app.schemas.hackathon import (
+    PostMortemRequest, PostMortemResponse, CostImpactResponse,
+    SelfHealProposalsResponse, SelfHealApproveRequest, SelfHealExecuteResponse,
+    ForecastResponse,
+)
 from app.api.deps import get_current_active_user
 from app.agents.graph import build_graph
 from app.agents.postmortem import generate_postmortem
+from app.agents.self_healing import generate_healing_proposals, execute_healing_action
+from app.agents.forecasting import generate_forecast
 from langchain_core.messages import HumanMessage
 from typing import List
 
@@ -204,6 +210,25 @@ async def read_incidents_slash(
 
 
 
+# ─── Forecasting Endpoint (Feature #2) — must be BEFORE /{id} ────────────────
+
+@router.get("/forecast", response_model=ForecastResponse)
+async def get_incident_forecast(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> any:
+    """Predictive incident forecasting based on historical patterns. Zero-shot LLM analysis."""
+    result = await db.execute(select(Incident))
+    incidents = result.scalars().all()
+
+    try:
+        forecast = generate_forecast(list(incidents))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Forecast generation failed: {str(e)}")
+
+    return ForecastResponse(**forecast)
+
+
 @router.get("/{id}", response_model=IncidentResponse)
 async def read_incident(
     *,
@@ -363,3 +388,71 @@ async def get_cost_impact(
         severity_multiplier=multiplier,
         affected_services=services,
     )
+
+
+# ─── Self-Healing Endpoints (Feature #1) ─────────────────────────────────────
+
+@router.get("/{id}/self-heal", response_model=SelfHealProposalsResponse)
+async def get_self_heal_proposals(
+    *,
+    db: AsyncSession = Depends(get_db),
+    id: UUID,
+    current_user: User = Depends(get_current_active_user),
+) -> any:
+    """Generate AI-proposed self-healing actions for an incident. Requires human approval."""
+    result = await db.execute(select(Incident).where(Incident.id == id))
+    incident = result.scalars().first()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    services = []
+    if incident.affected_services:
+        try:
+            services = json.loads(incident.affected_services)
+        except Exception:
+            services = [incident.affected_services]
+
+    try:
+        proposals = generate_healing_proposals(
+            incident_id=str(incident.id),
+            title=incident.title,
+            description=incident.description or "",
+            ai_analysis=incident.ai_analysis or "",
+            severity=incident.severity,
+            affected_services=services,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Self-healing proposal generation failed: {str(e)}")
+
+    return SelfHealProposalsResponse(**proposals)
+
+
+@router.post("/{id}/self-heal/approve", response_model=SelfHealExecuteResponse)
+async def approve_and_execute_self_heal(
+    *,
+    db: AsyncSession = Depends(get_db),
+    id: UUID,
+    body: SelfHealApproveRequest,
+    current_user: User = Depends(get_current_active_user),
+) -> any:
+    """Execute an approved self-healing action. This is the 'human co-pilot approve' step."""
+    result = await db.execute(select(Incident).where(Incident.id == id))
+    incident = result.scalars().first()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    try:
+        execution_result = execute_healing_action(
+            action_key=body.action_key,
+            incident_title=incident.title,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Execution failed: {str(e)}")
+
+    if not execution_result.get("success"):
+        raise HTTPException(status_code=400, detail=execution_result.get("log", "Execution failed"))
+
+    return SelfHealExecuteResponse(**execution_result)
+
+
+# (Forecast endpoint moved above /{id} routes for correct FastAPI routing precedence)
