@@ -14,16 +14,22 @@ def create_app() -> FastAPI:
     async def startup_event():
         from app.db.session import engine
         from app.models.base import Base
-        from app.models.user import User  # register User
-        from app.models.incident import Incident  # register Incident
+        from app.models.user import User         # register User
+        from app.models.incident import Incident # register Incident
+        from app.models.topology import ServiceNode, ServiceEdge  # register topology models
         async with engine.begin() as conn:
-            # Sync tables to sqlite
             await conn.run_sync(Base.metadata.create_all)
 
-    # Set up CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5176", "http://127.0.0.1:5176"], # Fix CORS explicit origins for credentials
+        allow_origins=[
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:5176",
+            "http://127.0.0.1:5176",
+        ],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -32,9 +38,9 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health_check():
         return {"status": "ok", "version": settings.VERSION}
-        
+
     app.include_router(api_router, prefix=settings.API_V1_STR)
-        
+
     return app
 
 app = create_app()
