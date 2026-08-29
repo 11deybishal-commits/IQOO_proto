@@ -43,7 +43,7 @@ async def transcribe_audio(
         "response_format": (None, "json"),
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
         try:
             response = await client.post(GROQ_WHISPER_URL, headers=headers, files=files)
             response.raise_for_status()

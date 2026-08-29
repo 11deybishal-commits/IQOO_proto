@@ -20,7 +20,7 @@ from app.agents.postmortem import generate_postmortem
 from langchain_core.messages import HumanMessage
 from typing import List
 
-router = APIRouter()
+router = APIRouter(redirect_slashes=False)
 
 # ─── Severity cost multipliers (no LLM needed) ───────────────────────────────
 SEVERITY_MULTIPLIERS = {
@@ -88,9 +88,7 @@ def run_incident_analysis_sync(
                 print(f"[AI] WARNING: Incident {incident_id} not found in DB!")
 
     try:
-        loop = asyncio.new_event_loop()
-        loop.run_until_complete(_save())
-        loop.close()
+        asyncio.run(_save())
     except Exception as e:
         print(f"[AI] ERROR saving to DB: {e}")
         traceback.print_exc()
@@ -100,22 +98,17 @@ def run_postmortem_sync(incident_id: str):
     """Generate postmortem in background after incident resolution."""
     print(f"[PM] Generating postmortem for {incident_id}...")
 
-    async def _load():
+    async def _process_pm():
         async with AsyncSessionLocal() as session:
             res = await session.execute(
                 select(Incident).where(Incident.id == uuid.UUID(incident_id))
             )
-            return res.scalars().first()
+            incident = res.scalars().first()
 
-    loop = asyncio.new_event_loop()
-    incident = loop.run_until_complete(_load())
+        if not incident:
+            print(f"[PM] Incident {incident_id} not found, skipping postmortem.")
+            return
 
-    if not incident:
-        print(f"[PM] Incident {incident_id} not found, skipping postmortem.")
-        loop.close()
-        return
-
-    try:
         postmortem_text = generate_postmortem(
             incident_id=str(incident.id),
             title=incident.title,
@@ -127,29 +120,26 @@ def run_postmortem_sync(incident_id: str):
             resolved_at=str(incident.resolved_at),
         )
 
-        async def _save():
-            async with AsyncSessionLocal() as session:
-                res = await session.execute(
-                    select(Incident).where(Incident.id == uuid.UUID(incident_id))
-                )
-                inc = res.scalars().first()
-                if inc:
-                    inc.postmortem = postmortem_text
-                    await session.commit()
-                    print(f"[PM] Saved postmortem for {incident_id}")
+        async with AsyncSessionLocal() as session:
+            res = await session.execute(
+                select(Incident).where(Incident.id == uuid.UUID(incident_id))
+            )
+            inc = res.scalars().first()
+            if inc:
+                inc.postmortem = postmortem_text
+                await session.commit()
+                print(f"[PM] Saved postmortem for {incident_id}")
 
-        loop.run_until_complete(_save())
-
+    try:
+        asyncio.run(_process_pm())
     except Exception as e:
         print(f"[PM] ERROR generating postmortem for {incident_id}: {e}")
         traceback.print_exc()
-    finally:
-        loop.close()
 
 
 # ─── CRUD Endpoints ───────────────────────────────────────────────────────────
 
-@router.post("/", response_model=IncidentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=IncidentResponse, status_code=status.HTTP_201_CREATED)
 async def create_incident(
     *,
     db: AsyncSession = Depends(get_db),
@@ -175,7 +165,23 @@ async def create_incident(
     return incident
 
 
-@router.get("/", response_model=List[IncidentResponse])
+@router.post("/", response_model=IncidentResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
+async def create_incident_slash(
+    *,
+    db: AsyncSession = Depends(get_db),
+    incident_in: IncidentCreate,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_active_user),
+) -> any:
+    return await create_incident(
+        db=db,
+        incident_in=incident_in,
+        background_tasks=background_tasks,
+        current_user=current_user,
+    )
+
+
+@router.get("", response_model=List[IncidentResponse])
 async def read_incidents(
     db: AsyncSession = Depends(get_db),
     skip: int = 0,
@@ -185,6 +191,17 @@ async def read_incidents(
     """Retrieve incidents."""
     result = await db.execute(select(Incident).offset(skip).limit(limit))
     return result.scalars().all()
+
+
+@router.get("/", response_model=List[IncidentResponse], include_in_schema=False)
+async def read_incidents_slash(
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_active_user),
+) -> any:
+    return await read_incidents(db=db, skip=skip, limit=limit, current_user=current_user)
+
 
 
 @router.get("/{id}", response_model=IncidentResponse)

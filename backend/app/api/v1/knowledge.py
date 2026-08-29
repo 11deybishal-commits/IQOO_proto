@@ -2,7 +2,7 @@ import io
 import os
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from langchain_community.vectorstores import FAISS
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.core.vectorstore import vector_store_manager
 from app.models.user import User

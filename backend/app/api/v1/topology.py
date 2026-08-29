@@ -9,7 +9,7 @@ from app.models.user import User
 from app.schemas.topology import TopologyResponse, BlastRadiusResponse, ServiceNodeResponse, ServiceEdgeResponse
 from app.api.deps import get_current_active_user
 
-router = APIRouter()
+router = APIRouter(redirect_slashes=False)
 
 
 async def seed_topology_if_empty(db: AsyncSession):
@@ -53,7 +53,7 @@ async def seed_topology_if_empty(db: AsyncSession):
     await db.commit()
 
 
-@router.get("/", response_model=TopologyResponse)
+@router.get("", response_model=TopologyResponse)
 async def get_topology(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -71,6 +71,15 @@ async def get_topology(
         nodes=[ServiceNodeResponse.model_validate(n) for n in nodes],
         edges=[ServiceEdgeResponse.model_validate(e) for e in edges],
     )
+
+
+@router.get("/", response_model=TopologyResponse, include_in_schema=False)
+async def get_topology_slash(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> any:
+    return await get_topology(db=db, current_user=current_user)
+
 
 
 @router.get("/blast-radius", response_model=BlastRadiusResponse)
