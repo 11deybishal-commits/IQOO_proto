@@ -58,7 +58,7 @@ async def register_user(
         full_name=user_in.full_name,
     )
     db.add(user_obj)
-    await db.commit()
+    await db.flush()  # flush to get the ID without committing
     await db.refresh(user_obj)
     return user_obj
 
