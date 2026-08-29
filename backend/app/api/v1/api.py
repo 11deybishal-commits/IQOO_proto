@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, incidents, topology, voice, knowledge
+from app.api.v1 import auth, incidents, topology, voice, knowledge, chatops
 
 api_router = APIRouter(redirect_slashes=False)
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -7,3 +7,4 @@ api_router.include_router(incidents.router, prefix="/incidents", tags=["incident
 api_router.include_router(topology.router, prefix="/topology", tags=["topology"])
 api_router.include_router(voice.router, prefix="/voice", tags=["voice"])
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])
+api_router.include_router(chatops.router, prefix="/chatops", tags=["chatops"])

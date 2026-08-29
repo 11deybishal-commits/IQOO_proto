@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   Brain,
@@ -11,11 +12,253 @@ import {
   FileText,
   Loader2,
   AlertTriangle,
+  Wrench,
+  Download,
+  Terminal,
+  ShieldCheck,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Activity,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
-import { getIncident, getCostImpact, getPostmortem, analyzeIncident, resolveIncident } from "@/lib/api";
+import {
+  getIncident,
+  getCostImpact,
+  getPostmortem,
+  analyzeIncident,
+  resolveIncident,
+  getSelfHealProposals,
+  approveSelfHeal,
+} from "@/lib/api";
+import { HealingProposal, SelfHealExecuteResponse } from "@/lib/api";
 import { formatRelativeTime, formatCurrency } from "@/lib/utils";
 
+// ─── PDF/Text export for post-mortem ─────────────────────────────────────────
+function downloadPostmortem(content: string, incidentId: string) {
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `postmortem-${incidentId.slice(0, 8)}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── Risk colours ─────────────────────────────────────────────────────────────
+const RISK_COLORS: Record<string, string> = {
+  low: "#10b981",
+  medium: "#f59e0b",
+  high: "#ef4444",
+};
+
+// ─── Individual Healing Action Card ──────────────────────────────────────────
+function HealingCard({
+  incidentId,
+  proposal,
+}: {
+  incidentId: string;
+  proposal: HealingProposal;
+}) {
+  const [showCmd, setShowCmd] = useState(false);
+  const [execResult, setExecResult] = useState<SelfHealExecuteResponse | null>(null);
+  const [confirming, setConfirming] = useState(false);
+
+  const approveMut = useMutation({
+    mutationFn: () => approveSelfHeal(incidentId, proposal.action_key),
+    onSuccess: (data) => {
+      setExecResult(data);
+      setConfirming(false);
+    },
+    onError: () => setConfirming(false),
+  });
+
+  const color = RISK_COLORS[proposal.risk] || "#6366f1";
+
+  return (
+    <div
+      className="p-4 rounded-xl border transition-all"
+      style={{
+        background: execResult ? "rgba(16,185,129,0.05)" : "rgba(8,13,25,0.6)",
+        borderColor: execResult ? "rgba(16,185,129,0.3)" : `${color}25`,
+      }}
+    >
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <div className="flex items-center gap-2">
+          <div
+            className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+            style={{ background: `${color}20`, color }}
+          >
+            {proposal.priority}
+          </div>
+          <p className="text-sm font-bold text-white">{proposal.description}</p>
+        </div>
+        <span
+          className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full flex-shrink-0"
+          style={{ background: `${color}20`, color, border: `1px solid ${color}40` }}
+        >
+          {proposal.risk} risk
+        </span>
+      </div>
+
+      <p className="text-xs text-slate-400 mb-3 ml-7 leading-relaxed">{proposal.rationale}</p>
+
+      <div className="flex items-center gap-3 ml-7 mb-3 text-xs text-slate-500">
+        <span className="flex items-center gap-1"><Clock size={10} /> ~{proposal.estimated_resolution_time_minutes}m</span>
+        <span className="flex items-center gap-1"><Activity size={10} /> {proposal.duration_seconds}s exec</span>
+      </div>
+
+      {/* Command preview */}
+      <button
+        onClick={() => setShowCmd(!showCmd)}
+        className="ml-7 flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 mb-2"
+      >
+        <Terminal size={10} />
+        {showCmd ? "Hide" : "Preview"} Command
+        {showCmd ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+      </button>
+      <AnimatePresence>
+        {showCmd && (
+          <motion.pre
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="ml-7 mb-3 p-2.5 rounded-lg bg-[#050a12] border border-indigo-500/20 text-[11px] font-mono text-cyan-300 whitespace-pre-wrap"
+          >
+            $ {proposal.command_preview}
+          </motion.pre>
+        )}
+      </AnimatePresence>
+
+      {/* Approve / Execute */}
+      {!execResult && (
+        <div className="ml-7">
+          {!confirming ? (
+            <button
+              onClick={() => setConfirming(true)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+              style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8" }}
+            >
+              <ShieldCheck size={12} /> Approve & Execute
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-amber-400 font-semibold">Confirm?</span>
+              <button
+                onClick={() => approveMut.mutate()}
+                disabled={approveMut.isPending}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400"
+              >
+                {approveMut.isPending ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />}
+                {approveMut.isPending ? "Running..." : "Yes, Execute"}
+              </button>
+              <button
+                onClick={() => setConfirming(false)}
+                className="px-2.5 py-1 rounded-lg text-xs font-bold bg-red-500/10 border border-red-500/20 text-red-400"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+          {approveMut.isError && (
+            <p className="text-xs text-red-400 mt-1">{(approveMut.error as Error).message}</p>
+          )}
+        </div>
+      )}
+
+      {/* Execution log */}
+      {execResult && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mt-3 rounded-xl overflow-hidden border border-emerald-500/30 bg-[#050a12]"
+        >
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border-b border-emerald-500/20">
+            <CheckCircle size={12} className="text-emerald-400" />
+            <span className="text-[11px] font-bold text-emerald-400">Executed Successfully</span>
+          </div>
+          <pre className="p-3 text-[10px] font-mono text-emerald-300 leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto">
+            {execResult.log}
+          </pre>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+// ─── Self-Healing Panel ───────────────────────────────────────────────────────
+function SelfHealPanel({ incidentId }: { incidentId: string }) {
+  const [active, setActive] = useState(false);
+
+  const { data: proposals, isLoading, error, refetch } = useQuery({
+    queryKey: ["self-heal", incidentId],
+    queryFn: () => getSelfHealProposals(incidentId),
+    enabled: active,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return (
+    <div className="glass-card p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-violet-500/15 border border-violet-500/30">
+            <Wrench size={15} className="text-violet-400" />
+          </div>
+          <h2 className="font-bold text-sm text-white">Autonomous Self-Healing</h2>
+        </div>
+        <button
+          onClick={() => { setActive(true); if (active) refetch(); }}
+          disabled={isLoading}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+          style={{ background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.3)", color: "#a78bfa" }}
+        >
+          {isLoading ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+          {active ? (isLoading ? "Generating..." : "Refresh Proposals") : "Generate AI Proposals"}
+        </button>
+      </div>
+
+      {!active && (
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Click above to have the AI analyze this incident and propose targeted remediation actions.
+          All actions require your approval before execution.
+        </p>
+      )}
+
+      {isLoading && (
+        <div className="flex items-center gap-3 py-6 justify-center">
+          <Loader2 size={18} className="animate-spin text-violet-400" />
+          <span className="text-sm text-slate-400">AI generating healing proposals...</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 text-red-400 text-xs py-2">
+          <AlertTriangle size={14} />
+          <span>{(error as Error).message}</span>
+        </div>
+      )}
+
+      {proposals && proposals.proposals.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-violet-400 text-xs font-bold">
+            <Wrench size={12} />
+            <span>AI HEALING PROPOSALS — SORTED BY PRIORITY</span>
+          </div>
+          {proposals.proposals
+            .sort((a, b) => a.priority - b.priority)
+            .map((p) => (
+              <HealingCard key={p.action_key} incidentId={incidentId} proposal={p} />
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
@@ -85,7 +328,7 @@ export default function IncidentDetailPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5 flex-shrink-0">
+          <div className="flex items-center gap-2.5 flex-shrink-0 flex-wrap">
             {incident.status !== "resolved" && (
               <>
                 <button
@@ -150,9 +393,14 @@ export default function IncidentDetailPage() {
             )}
           </div>
 
+          {/* Self-Healing Section (Feature #1) */}
+          {incident.status !== "resolved" && (
+            <SelfHealPanel incidentId={incident.id} />
+          )}
+
           {/* Blameless Post-Mortem */}
           {pm && (
-            <div className="glass-card p-6 space-y-3.5 border-emerald-500/30">
+            <div className="glass-card p-6 space-y-3.5">
               <div className="flex items-center justify-between border-b border-emerald-500/20 pb-3">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
@@ -160,9 +408,19 @@ export default function IncidentDetailPage() {
                   </div>
                   <h2 className="font-bold text-sm text-white">Blameless Post-Mortem Report</h2>
                 </div>
-                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded">
-                  Generated
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded">
+                    Generated
+                  </span>
+                  <button
+                    onClick={() => downloadPostmortem(pm.postmortem, incident.id)}
+                    title="Download as Markdown"
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20 transition-all"
+                  >
+                    <Download size={12} />
+                    Export .md
+                  </button>
+                </div>
               </div>
 
               <div className="prose-dark text-xs bg-[#070b14]/90 p-4 rounded-xl border border-slate-800">
@@ -226,10 +484,7 @@ export default function IncidentDetailPage() {
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Impacted Microservices</p>
                   <div className="flex flex-wrap gap-1.5">
                     {cost.affected_services.map((s) => (
-                      <span
-                        key={s}
-                        className="text-[11px] font-medium px-2 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-500/30"
-                      >
+                      <span key={s} className="text-[11px] font-medium px-2 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-500/30">
                         {s}
                       </span>
                     ))}

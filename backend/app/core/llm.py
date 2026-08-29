@@ -13,6 +13,6 @@ def get_llm() -> ChatGroq:
         api_key=settings.GROQ_API_KEY,
         model_name="qwen/qwen3.6-27b",
         temperature=0.0,
-        max_tokens=4096,
+        max_tokens=2048,
         http_client=httpx.Client(verify=False, timeout=60.0),
     )

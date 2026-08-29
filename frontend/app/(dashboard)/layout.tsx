@@ -13,6 +13,9 @@ import {
   Settings,
   LogOut,
   Sparkles,
+  Wrench,
+  TrendingUp,
+  MessageSquare,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { VoiceCommand } from "@/components/voice/VoiceCommand";
@@ -20,6 +23,9 @@ import { VoiceCommand } from "@/components/voice/VoiceCommand";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/incidents", label: "Incidents", icon: AlertTriangle },
+  { href: "/self-healing", label: "Self-Healing", icon: Wrench },
+  { href: "/forecasting", label: "Forecasting", icon: TrendingUp },
+  { href: "/chatops", label: "ChatOps Swarm", icon: MessageSquare },
   { href: "/blast-radius", label: "Blast Radius", icon: Network },
   { href: "/knowledge", label: "Knowledge Base", icon: BookOpen },
   { href: "/settings", label: "Settings", icon: Settings },

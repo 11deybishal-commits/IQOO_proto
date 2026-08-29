@@ -85,6 +85,70 @@ export interface KnowledgeSearchResult {
   chunk: number;
 }
 
+// ─── Self-Healing Types (Feature #1) ─────────────────────────────────────────
+export interface HealingProposal {
+  action_key: string;
+  description: string;
+  command_preview: string;
+  risk: "low" | "medium" | "high";
+  duration_seconds: number;
+  rationale: string;
+  priority: number;
+  estimated_resolution_time_minutes: number;
+}
+
+export interface SelfHealProposalsResponse {
+  incident_id: string;
+  proposals: HealingProposal[];
+}
+
+export interface SelfHealExecuteResponse {
+  success: boolean;
+  action_key: string;
+  command_executed: string;
+  log: string;
+  duration_seconds: number;
+}
+
+// ─── Forecasting Types (Feature #2) ──────────────────────────────────────────
+export interface RiskScore {
+  service: string;
+  risk_level: "low" | "medium" | "high" | "critical";
+  risk_score: number; // 0-100
+  reason: string;
+  predicted_window: string;
+}
+
+export interface PreIncidentAlert {
+  title: string;
+  description: string;
+  severity: "warning" | "critical";
+  service: string;
+}
+
+export interface ForecastResponse {
+  generated_at: string;
+  total_incidents_analyzed: number;
+  incidents_last_24h: number;
+  pattern_summary: Record<string, unknown>;
+  risk_scores: RiskScore[];
+  pre_incident_alerts: PreIncidentAlert[];
+}
+
+// ─── ChatOps Types (Feature #3) ───────────────────────────────────────────────
+export interface ChatOpsMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatOpsResponse {
+  query: string;
+  dba_agent_response: string;
+  network_agent_response: string;
+  supervisor_response: string;
+  agents_consulted: string[];
+}
+
 // ─── API Client ──────────────────────────────────────────────────────────────
 const BASE_URL = "/api/v1";
 
@@ -196,6 +260,26 @@ export async function updateIncident(
   });
 }
 
+// ─── Self-Healing (Feature #1) ───────────────────────────────────────────────
+export async function getSelfHealProposals(id: string): Promise<SelfHealProposalsResponse> {
+  return request<SelfHealProposalsResponse>(`/incidents/${id}/self-heal`);
+}
+
+export async function approveSelfHeal(
+  id: string,
+  action_key: string
+): Promise<SelfHealExecuteResponse> {
+  return request<SelfHealExecuteResponse>(`/incidents/${id}/self-heal/approve`, {
+    method: "POST",
+    body: JSON.stringify({ action_key }),
+  });
+}
+
+// ─── Forecasting (Feature #2) ────────────────────────────────────────────────
+export async function getForecast(): Promise<ForecastResponse> {
+  return request<ForecastResponse>(`/incidents/forecast`);
+}
+
 // ─── Topology ────────────────────────────────────────────────────────────────
 export async function getTopology(): Promise<TopologyResponse> {
   return request<TopologyResponse>("/topology");
@@ -260,4 +344,15 @@ export async function transcribeAudio(
     throw new Error(err.detail || "Transcription failed");
   }
   return res.json();
+}
+
+// ─── ChatOps (Feature #3) ────────────────────────────────────────────────────
+export async function sendChatOpsMessage(
+  query: string,
+  history: ChatOpsMessage[]
+): Promise<ChatOpsResponse> {
+  return request<ChatOpsResponse>("/chatops/chat", {
+    method: "POST",
+    body: JSON.stringify({ query, history }),
+  });
 }
