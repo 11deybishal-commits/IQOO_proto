@@ -2,8 +2,8 @@
 
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, Loader2, X, Zap, AlertTriangle, Search, Plus } from "lucide-react";
-import { transcribeAudio, getIncidents, getSelfHealProposals } from "@/lib/api";
+import { Mic, MicOff, Loader2, X, Zap } from "lucide-react";
+import { transcribeAudio, getIncidents } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 
 // ─── Intent parsing ───────────────────────────────────────────────────────────
