@@ -8,6 +8,8 @@ class IncidentBase(BaseModel):
     status: str = "open"
     severity: str = "low"
     ai_analysis: str | None = None
+    project: str | None = None
+    department: str | None = None
 
 class IncidentCreate(IncidentBase):
     pass
@@ -17,6 +19,8 @@ class IncidentUpdate(BaseModel):
     description: str | None = None
     status: str | None = None
     severity: str | None = None
+    project: str | None = None
+    department: str | None = None
 
 class IncidentResponse(IncidentBase):
     id: UUID

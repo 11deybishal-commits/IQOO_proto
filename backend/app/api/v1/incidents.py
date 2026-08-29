@@ -18,7 +18,7 @@ from langchain_core.messages import HumanMessage
 router = APIRouter()
 
 
-def run_incident_analysis_sync(incident_id: str, title: str, description: str):
+def run_incident_analysis_sync(incident_id: str, title: str, description: str, project: str = "", department: str = ""):
     """
     Synchronous background task — FastAPI BackgroundTasks runs this in a thread.
     We build the graph, invoke it synchronously, then use asyncio.run() to save to DB.
@@ -31,8 +31,10 @@ def run_incident_analysis_sync(incident_id: str, title: str, description: str):
             content=(
                 f"New Incident Reported:\n"
                 f"Title: {title}\n"
-                f"Description: {description}\n\n"
-                f"Please analyze this incident. First search for similar past incidents, "
+                f"Description: {description}\n"
+                f"Project: {project or 'N/A'}\n"
+                f"Department: {department or 'N/A'}\n\n"
+                f"Please analyze this incident. First search for similar past incidents in this project/department, "
                 f"then provide a comprehensive root cause hypothesis and recommended actions."
             )
         )
@@ -102,7 +104,9 @@ async def create_incident(
         run_incident_analysis_sync,
         incident_id=str(incident.id),
         title=incident.title,
-        description=incident.description or ""
+        description=incident.description or "",
+        project=incident.project or "",
+        department=incident.department or ""
     )
     
     return incident
@@ -137,4 +141,38 @@ async def read_incident(
     incident = result.scalars().first()
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")
+    return incident
+
+@router.post("/{id}/analyze", response_model=IncidentResponse)
+async def analyze_incident(
+    *,
+    db: AsyncSession = Depends(get_db),
+    id: UUID,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_active_user),
+) -> any:
+    """
+    Re-trigger AI Analysis for an existing incident.
+    """
+    result = await db.execute(select(Incident).where(Incident.id == id))
+    incident = result.scalars().first()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    
+    # Clear old error log so UI shows loading state
+    incident.ai_analysis = None
+    incident.status = "investigating"
+    await db.commit()
+    await db.refresh(incident)
+    
+    # Trigger background LangGraph analysis
+    background_tasks.add_task(
+        run_incident_analysis_sync,
+        incident_id=str(incident.id),
+        title=incident.title,
+        description=incident.description or "",
+        project=incident.project or "",
+        department=incident.department or ""
+    )
+    
     return incident

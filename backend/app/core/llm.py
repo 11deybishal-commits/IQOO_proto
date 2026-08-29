@@ -8,7 +8,7 @@ def get_llm() -> ChatGroq:
     """
     return ChatGroq(
         api_key=settings.GROQ_API_KEY,
-        model_name="llama-3.3-70b-versatile",
+        model_name="qwen/qwen3.6-27b",
         temperature=0.0,
         max_tokens=4096,
         model_kwargs={"top_p": 0.9},
