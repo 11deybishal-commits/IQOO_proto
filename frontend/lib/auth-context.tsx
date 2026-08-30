@@ -33,32 +33,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleSetToken = useCallback(async (t: string): Promise<User | null> => {
+    // Keep isLoading=true the whole time so page.tsx doesn't react to intermediate states
     if (typeof window !== "undefined") {
       localStorage.setItem("sentinel_token", t);
     }
     setTokenState(t);
-    setIsLoading(true);
     try {
       const userData = await getMe();
       setUser(userData);
+      setIsLoading(false);
       return userData;
     } catch (err) {
-      logout();
-      throw err;
-    } finally {
+      // Token invalid — clear everything and surface the error to the caller
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("sentinel_token");
+      }
+      setTokenState(null);
+      setUser(null);
       setIsLoading(false);
+      throw err;
     }
-  }, [logout]);
+  }, []);
 
   useEffect(() => {
     const stored = typeof window !== "undefined" ? localStorage.getItem("sentinel_token") : null;
     if (!stored) {
-      setTimeout(() => setIsLoading(false), 0);
+      setIsLoading(false);
       return;
     }
-    setTimeout(() => setTokenState(stored), 0);
+    setTokenState(stored);
     getMe()
-      .then(setUser)
+      .then((userData) => {
+        setUser(userData);
+      })
       .catch(() => {
         logout();
       })
